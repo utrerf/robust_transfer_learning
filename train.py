@@ -7,7 +7,6 @@ var_dict = helpers.get_runtime_inputs()
 helpers.set_seeds(var_dict)
 
 model = helpers.load_model(var_dict)
-print('here')
 model = helpers.change_linear_layer_out_features(model, var_dict)
 model = helpers.re_init_and_freeze_blocks(model, var_dict)
 
