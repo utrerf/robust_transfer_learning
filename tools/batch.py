@@ -6,35 +6,30 @@ import os
 from delete_big_files import deleteBigFilesFor1000experiment
 
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="5"
+os.environ["CUDA_VISIBLE_DEVICES"]="7"
 
-train_dir = '/home/eecs/erichson/arnn_transfer/robust_transfer_learning'
+train_dir = '/home/eecs/erichson/arnn_transfer/new_rob/robust_transfer_learning'
 
+sample_size_to_number_of_seeds_epochs_and_log_freq = {
+	100  : (10, 100, 20),
+	200  : (10, 100, 20),
+	400  : (10, 100, 20),
+	800  : (10, 100, 20),
+	1600 : (10, 100, 20),
+	3200 : (10,  50, 10),
+	6400 : (10,  50, 10),
+	12800: (5,   30,  5),
+	25600: (5,   30,  5),
+	-1   : (1,   30,  5),
+}
 
-#eps_levels = [0, 3, 4]
-#num_unfrozen_blocks_list = [0, 1, 3]
-sample_size = [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, -1]
-# sample_size_to_seeds = 
-# {
-# 	100   : [10000000 + 100000* for i in range(25)],
-# 	200   : [10000000 + 100000*i for i in range(25)],
-# 	400   : [10000000 + 100000*i for i in range(25)],
-# 	800   : [10000000 + 100000*i for i in range(25)],
-# 	1600  : [10000000 + 100000*i for i in range(25)],
-# 	3200  : [10000000 + 100000*i for i in range(25)],
-# 	6400  : [10000000 + 100000*i for i in range(25)],
-# }
-
-num_seeds = 5
-seed_list = [10000000 + 100000*(i) for i in range(num_seeds)] 
-
-target_ds_list = ['svhn']	
+target_ds_list = ['cifar10']	
 eps_levels = [0, 3, 4]
-num_unfrozen_blocks_list = [1]	
+num_unfrozen_blocks_list = [0, 1, 3]	
 
 
 polling_delay_seconds = 1
-concurrent_commands = 2
+concurrent_commands = 3
 commands_to_run = []
 
 def poll_process(process):
@@ -42,12 +37,13 @@ def poll_process(process):
 	return process.poll()
 
 for t in target_ds_list:
-	for e in eps_levels:
-		for ub in num_unfrozen_blocks_list:
-			for n in sample_size:
-				# seed_list = sample_size_to_seeds[n]
-				for s in seed_list:
-					command = f'python train.py -e {e} -t {t} -ub {ub} -n {n} -s {s} '
+	for ub in num_unfrozen_blocks_list:
+		for n, tup in sample_size_to_number_of_seeds_epochs_and_log_freq.items():
+			num_seeds, ne, li = tup
+			seed_list = [20000000 + 100000*(i) for i in range(num_seeds)]
+			for s in seed_list:
+				for e in eps_levels:
+					command = f'python train.py -e {e} -t {t} -ub {ub} -n {n} -s {s} -ne {ne} -li {li}'
 					commands_to_run.append(command)
 
 for start_idx in range(0, len(commands_to_run), concurrent_commands):
@@ -62,4 +58,5 @@ for start_idx in range(0, len(commands_to_run), concurrent_commands):
 			pass
 	
 	deleteBigFilesFor1000experiment()
+
 

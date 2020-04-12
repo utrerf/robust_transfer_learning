@@ -14,7 +14,7 @@ train_set, test_set       = helpers.make_train_and_test_set(var_dict)
 train_loader, test_loader = helpers.make_data_loaders(train_set, test_set, var_dict)
 
 out_store  = helpers.make_out_store(var_dict)
-train_args = helpers.make_train_args()
+train_args = helpers.make_train_args(var_dict)
 
 helpers.print_details(model, var_dict, train_args)
 

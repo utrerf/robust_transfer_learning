@@ -33,14 +33,17 @@ def get_runtime_inputs():
   parser.add_argument('-b',  required=False, default=128,       help='batch size',  type=int)
   parser.add_argument('-n',  required=False, default=-1,        help='number of images used in the target dataset', type=int)
   parser.add_argument('-w',  required=False, default=10,        help='number of workers used for parallel computations', type=int)
+  parser.add_argument('-ne', required=False, default=30,        help='number of epochs', type=int)
+  parser.add_argument('-li', required=False, default=5,         help='how often to log iterations', type=int)
   parser.add_argument('-s',  required=False, default=1000000,   help='random seed', type=int)
+
 
   args = parser.parse_args()
 
   eps_to_filename = {
     0: 'nat',
     3: 'imagenet_l2_3_0.pt',
-    4: 'imagenet_linf_4_0.pt'
+    4: 'imagenet_linf_4.pt'
     }
 
   source_filename  = eps_to_filename[args.e]
@@ -54,7 +57,9 @@ def get_runtime_inputs():
     'batch_size'             : args.b,        
     'seed'                   : args.s,
     'num_workers'            : args.w, 
-    'num_training_images'    : args.n
+    'num_training_images'    : args.n,
+    'num_epochs'             : args.ne,
+    'log_iters'              : args.li
     }
 
   return var_dict
@@ -179,8 +184,8 @@ def make_data_loaders(train_set, test_set, var_dict):
     #print()
     if 'train_labels' in dir(train_set):
       remaining_classes_set = set(train_set.train_labels.tolist())
-    # elif 'labels' in dir(train_set):
-    #   print(dir(train_set.labels))
+    elif 'labels' in dir(train_set):
+      remaining_classes_set = set(train_set.labels)
     else:
       remaining_classes_set = set(train_set.targets)
 
@@ -230,13 +235,19 @@ def make_out_store(var_dict):
   return out_store
 
 
-def make_train_args():
+def make_train_args(var_dict):
+
+  num_epochs = var_dict['num_epochs']
+  step_lr = num_epochs//3
+
+  log_iters  = var_dict['log_iters']
   
   train_kwargs = {
     'out_dir'     : "train_out",
     'adv_train'   : 0,
-    'epochs'      : 30,
-    'step_lr'     : 10
+    'epochs'      : num_epochs,
+    'step_lr'     : step_lr,
+    "log_iters"   : log_iters,
     }
 
   train_args = Parameters(train_kwargs)
@@ -255,5 +266,6 @@ def print_details(model, var_dict, train_args):
 
   print('Transfer learning training parameters: ')
   pprint.pprint(train_args)
+
 
 
