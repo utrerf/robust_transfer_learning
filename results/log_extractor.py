@@ -34,6 +34,7 @@ for folder in folder_list:
 		new_df['seed'] = re.findall(r'seed_([a-z,0-9]+)', folder)[0]
 
 		df = df.append(new_df)
+		s.close()
 
 		os.chdir("..")
 
