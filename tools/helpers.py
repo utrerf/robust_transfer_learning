@@ -22,8 +22,8 @@ import sys
 
 def get_runtime_inputs():
 
-  eps_list             = [0, 3, 4]
-  unfrozen_blocks_list = [0, 1, 3]
+  eps_list             = [0, 3, 4, 8]
+  unfrozen_blocks_list = [0, 1, 3, 6]
   target_dataset_list  = ['cifar100', 'cifar10', 'svhn', 'fmnist', 'kmnist', 'mnist']
 
   parser = argparse.ArgumentParser(add_help=True)
@@ -43,7 +43,8 @@ def get_runtime_inputs():
   eps_to_filename = {
     0: 'nat',
     3: 'imagenet_l2_3_0.pt',
-    4: 'imagenet_linf_4.pt'
+    4: 'imagenet_linf_4.pt',
+    8: 'imagenet_linf_8.pt'
     }
 
   source_filename  = eps_to_filename[args.e]
@@ -109,8 +110,9 @@ def re_init_and_freeze_blocks(model, var_dict):
   
   unfrozen_blocks_to_layer_name_list = {
     0: ['fc'],
-    1: ['4.2', 'fc'],
-    3: ['4.0', '4.1', '4.2', 'fc']
+    1: ['fc', '4.2'],
+    3: ['fc', '4.2', '4.1', '4.0'],
+    6: ['fc', '4.2', '4.1', '4.0', '3.5', '3.4', '3.3', '3.2', '3.1', '3.0']
     }
 
   unfrozen_blocks = var_dict['unfrozen_blocks']
