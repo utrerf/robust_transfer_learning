@@ -12,6 +12,29 @@ missing baseline (from scratch w/o transfer) for cifar10 - currently taking Madr
 missing two e=8 points
 -t {cifar10, svhn} -n -1 -ne 150 -e 8
 
+CURRENTLY RUNNING IN AWS
+------------------------
+
+X1:		l_inf=8		baselines
+	0: 	cifar100	cifar10
+	1: 	mnist		svhn
+	2: 	kmnist		cifar100
+	3:	fmnist		mnist
+
+X2:		ub=6; e={0,3,4,8}
+	0:	cifar10
+	1:	svhn
+	2: 	cifar100
+	3:	mnist
+Berkeley:
+	1:	fmnist baselines
+	2: 	fmnist and kmnist (l_inf=8)
+	3: 	kmnist baselines
+
+Notes: 
+	baselines: e={0,3,4}; ub={0,1,3}
+	l_inf=8: ub={0,1,3} [NOT 6]
+
 TO CONSIDER
 -----------
 
