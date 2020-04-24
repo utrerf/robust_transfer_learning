@@ -20,12 +20,12 @@ sample_size_to_number_of_seeds_epochs_and_log_freq = {
 	6400 : (10,  50, 10),
 	12800: (5,   30,  5),
 	25600: (5,   30,  5),
-	-1   : (1,   30,  5),
+	-1   : (1,  150, 10),
 }
 
-target_ds_list = ['cifar10']	
-eps_levels = [0, 3, 4]
-num_unfrozen_blocks_list = [0, 1, 3]	
+target_ds_list = ['cifar100', 'cifar10', 'svhn', 'kmnist', 'fmnist', 'mnist']
+eps_levels = [0, 3, 4, 8]
+num_unfrozen_blocks_list = [0, 1, 3, 6]	
 
 
 polling_delay_seconds = 1
