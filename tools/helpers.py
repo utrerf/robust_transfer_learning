@@ -177,6 +177,16 @@ def make_data_loaders(train_set, test_set, var_dict):
 
   # make mask
   dataset_size = len(train_set)
+  mask_sampler = make_mask(num_training_images, dataset_size)
+
+  train_loader = ch.utils.data.DataLoader(train_set, sampler=mask_sampler, batch_size=batch_size, 
+                                          shuffle=False, num_workers=num_workers, pin_memory=True)
+  test_loader  = ch.utils.data.DataLoader(test_set,                        batch_size=batch_size, 
+                                          shuffle=False, num_workers=num_workers, pin_memory=True)
+  return train_loader, test_loader
+
+
+def make_mask(num_training_images, dataset_size):
   mask = np.ones(dataset_size)
 
   if num_training_images != -1:
@@ -211,13 +221,8 @@ def make_data_loaders(train_set, test_set, var_dict):
   print('made the mask')
   mask = np.nonzero(mask)[0]
   mask_sampler = ch.utils.data.sampler.SubsetRandomSampler(mask)
-
-  train_loader = ch.utils.data.DataLoader(train_set, sampler=mask_sampler, batch_size=batch_size, 
-                                          shuffle=False, num_workers=num_workers, pin_memory=True)
-  test_loader  = ch.utils.data.DataLoader(test_set,                        batch_size=batch_size, 
-                                          shuffle=False, num_workers=num_workers, pin_memory=True)
-  return train_loader, test_loader
-
+  return mask_sampler
+  
 
 def make_out_store(var_dict):
 
@@ -270,4 +275,27 @@ def print_details(model, var_dict, train_args):
   pprint.pprint(train_args)
 
 
+def eval_hessian(loss_grad, model):
+    cnt = 0
+    for g in loss_grad:
+        g_vector = g.contiguous().view(-1) if cnt == 0 else ch.cat([g_vector, g.contiguous().view(-1)])
+        cnt = 1
+    l = g_vector.size(0)
+    hessian = ch.zeros(l, l)
+    print('here3')
+    for idx in range(l):
+        grad2rd = autograd.grad(g_vector[idx], model.parameters(), create_graph=True)
+        cnt = 0
+        for g in grad2rd:
+            g2 = g.contiguous().view(-1) if cnt == 0 else ch.cat([g2, g.contiguous().view(-1)])
+            cnt = 1
+        hessian[idx] = g2
+    return hessian.cpu().data.numpy()
 
+
+def flatten_grad(grad):
+    cnt = 0
+    for g in grad:
+        g_vector = g.contiguous().view(-1) if cnt == 0 else ch.cat([g_vector, g.contiguous().view(-1)])
+        cnt = 1
+    return g_vector.cpu().data.numpy()
