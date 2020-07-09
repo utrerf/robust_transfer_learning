@@ -9,28 +9,18 @@ import argparse
 # note: currently only supported for CIFAR10 and epsilon=[0,3]
 import sys
 sys.path.insert(1, '..')
-from tools.helpers import flatten_grad
+from tools.helpers import flatten_grad, make_mask, set_seeds
+from tools.helpers import get_runtime_inputs_for_influence_functions
 import tools.custom_datasets as custom_datasets
 
-
-# PARSE INPUTS
-parser = argparse.ArgumentParser(add_help=True)
-
-parser.add_argument('-e',  required=False, default=0,
-                    help='epsilon used to train the source dataset', type=int, choices=[0, 3])
-parser.add_argument('-n',  required=False, default=3200,
-                    help='number of images used to make hessian', type=int)
-parser.add_argument('-ub',  required=False, default=3,
-                    help='number of unfrozen blocks', type=int)
-parser.add_argument('-t',  required=False, default='train',
-                    help='train or test?', type=str, choices=['train', 'test'])
-
-args = parser.parse_args()
+args = get_runtime_inputs_for_influence_functions()
 
 eps        = args.e
 num_images = args.n
 ub         = args.ub
 data_type  = args.t
+seed       = args.s
+ds         = args.ds
 isTrain = (data_type == 'train')
 
 # LOAD MODEL
@@ -46,18 +36,34 @@ criterion = ch.nn.CrossEntropyLoss()
 
 # MAKE DATASET
 size = (224, 224)
-data_set = datasets.CIFAR10(root='/tmp', train=isTrain, download=True,
-                            transform=custom_datasets.TEST_TRANSFORMS_DEFAULT(size))
+if ds == 'cifar10':
+    data_set = datasets.CIFAR10(root='/tmp', train=isTrain, download=True,
+                                transform=custom_datasets.TEST_TRANSFORMS_DEFAULT(size))
+elif ds == 'svhn':
+    split = 'test'
+    if isTrain: split = 'train'
+    data_set = datasets.SVHN(root='/tmp', split=split, download=True,
+                             transform=custom_datasets.TEST_TRANSFORMS_DEFAULT(size))
+
+set_seeds({'seed':seed})
+subset = data_set
+if isTrain: 
+    dataset_size = len(data_set)
+    mask_sampler = make_mask(num_images, data_set)
+    subset = ch.utils.data.Subset(data_set, mask_sampler.indices)
+    # SAVE MASK
+    mask = mask_sampler.indices
+    np.save(f'mask/{ds}_{num_images}_num_images_{seed}_seed', mask)
 
 # MAKE THE GRADIENTS
 batch_size          = 1
 num_workers         = 1
-loader = ch.utils.data.DataLoader(data_set, batch_size=batch_size, 
+loader = ch.utils.data.DataLoader(subset, batch_size=batch_size, 
                                   shuffle=False, num_workers=num_workers, pin_memory=True)
 
 import os
 base1 = f'{data_type}_grad'
-base2 = f'{eps}_eps_{ub}_ub_{num_images}_images'
+base2 = f'{ds}_{eps}_eps_{ub}_ub_{num_images}_images'
 if base1 not in os.listdir():
     os.mkdir(base1)
 if base2 not in os.listdir(base1):
@@ -68,8 +74,8 @@ for i, data in enumerate(loader):
     image, label = data
     output, final_inp = model(image.cuda()) 
     loss = criterion(output.cpu(), label)
-    loss_grad = autograd.grad(loss, model.model.fc.parameters(), create_graph=True)
-    loss_grad = flatten_grad(loss_grad)    
+    loss_grad = autograd.grad(loss.double(), model.model.fc.parameters(), create_graph=False)
+    loss_grad = flatten_grad(loss_grad)
     ch.cuda.empty_cache()
     if i%1000 == 0:
         grad = loss_grad
@@ -77,4 +83,4 @@ for i, data in enumerate(loader):
         grad = np.vstack((grad, loss_grad))
         if ((i+1)%1000) == 0:
             np.save(base1+'/'+base2+'/' + f'{i}_end_idx', np.array(grad))
-
+if data_type == 'test': np.save(base1+'/'+base2+'/' + f'{num_images-1}_end_idx', np.array(grad))

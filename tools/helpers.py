@@ -1,4 +1,5 @@
 import torch as ch
+from torch import autograd
 import torch.nn as nn
 from torchvision import datasets
 
@@ -176,8 +177,7 @@ def make_data_loaders(train_set, test_set, var_dict):
   num_workers         = var_dict['num_workers']
 
   # make mask
-  dataset_size = len(train_set)
-  mask_sampler = make_mask(num_training_images, dataset_size)
+  mask_sampler = make_mask(num_training_images, train_set)
 
   train_loader = ch.utils.data.DataLoader(train_set, sampler=mask_sampler, batch_size=batch_size, 
                                           shuffle=False, num_workers=num_workers, pin_memory=True)
@@ -186,7 +186,8 @@ def make_data_loaders(train_set, test_set, var_dict):
   return train_loader, test_loader
 
 
-def make_mask(num_training_images, dataset_size):
+def make_mask(num_training_images, train_set):
+  dataset_size = len(train_set)
   mask = np.ones(dataset_size)
 
   if num_training_images != -1:
@@ -281,16 +282,16 @@ def eval_hessian(loss_grad, model):
         g_vector = g.contiguous().view(-1) if cnt == 0 else ch.cat([g_vector, g.contiguous().view(-1)])
         cnt = 1
     l = g_vector.size(0)
-    hessian = ch.zeros(l, l)
-    print('here3')
+    hessian = ch.zeros(l, l).cpu().double()
     for idx in range(l):
-        grad2rd = autograd.grad(g_vector[idx], model.parameters(), create_graph=True)
+        grad2rd = autograd.grad(g_vector[idx], model.parameters(), retain_graph=True)
+        grad2rd = (grad2rd[0].cpu().double(), grad2rd[1].cpu().double())
         cnt = 0
         for g in grad2rd:
             g2 = g.contiguous().view(-1) if cnt == 0 else ch.cat([g2, g.contiguous().view(-1)])
             cnt = 1
         hessian[idx] = g2
-    return hessian.cpu().data.numpy()
+    return hessian.cpu().double().data.numpy()
 
 
 def flatten_grad(grad):
@@ -298,4 +299,39 @@ def flatten_grad(grad):
     for g in grad:
         g_vector = g.contiguous().view(-1) if cnt == 0 else ch.cat([g_vector, g.contiguous().view(-1)])
         cnt = 1
-    return g_vector.cpu().data.numpy()
+    return g_vector.cpu().double().data.numpy()
+
+def get_runtime_inputs_for_influence_functions():
+    # PARSE INPUTS
+    parser = argparse.ArgumentParser(add_help=True)
+
+    parser.add_argument('-e',  required=False, default=0,
+                        help='epsilon used to train the source dataset', type=int, choices=[0, 3])
+    parser.add_argument('-n',  required=False, default=3200,
+                        help='number of images used to make hessian', type=int)
+    parser.add_argument('-ub',  required=False, default=3,
+                        help='number of unfrozen blocks', type=int)
+    parser.add_argument('-s',  required=False, default=1000000,
+                        help='seed', type=int)
+    ds_list = ['cifar10', 'svhn']
+    parser.add_argument('-ds',  required=True, choices=ds_list,
+                        help='target dataset', type=str)
+    parser.add_argument('-b',  required=False, default=1,
+                        help='batch_size used to generate hessian (not needed for make_gradient.py)', type=int)
+    parser.add_argument('-t',  required=False, default='train',
+                        help='train or test? (not needed for hessian.py)', type=str, choices=['train', 'test'])
+
+    args = parser.parse_args()
+
+    return args
+
+def load_gradients(ds, eps, ub=3, num_images=3200, train_or_test='train'):
+    os.chdir(f'{train_or_test}_grad/{ds}_{eps}_eps_{ub}_ub_{num_images}_images')
+    files = os.listdir()
+    for i, f in enumerate(files):
+        if i == 0: gradients = np.load(f)
+        else:      gradients = np.vstack((gradients, np.load(f)))
+
+    os.chdir('../..')
+    return gradients
+
