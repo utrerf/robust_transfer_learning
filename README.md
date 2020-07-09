@@ -1,4 +1,4 @@
-# Accelerating Transfer Learning with Robust Neural Nets
+# Adversarially-Trained Deep Nets Transfer Better
 
 This github repo contains the code used for the "Adversarially-Trained Deep Nets Transfer Better" paper
 
