@@ -8,6 +8,16 @@ from robustness import model_utils, train, defaults
 from torchvision import datasets
 from robustness.datasets import *
 
+TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE = lambda downscale, upscale: transforms.Compose([
+            transforms.Resize(downscale),
+            transforms.Resize(upscale),
+            transforms.RandomCrop(size, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(.25,.25,.25),
+            transforms.RandomRotation(2),
+            transforms.ToTensor(),
+        ])
+
 TRAIN_TRANSFORMS_DEFAULT = lambda size: transforms.Compose([
             transforms.Resize(size),
             transforms.RandomCrop(size, padding=4),
@@ -21,6 +31,13 @@ Generic training data transform, given image side length does random cropping,
 flipping, color jitter, and rotation. Called as, for example,
 :meth:`robustness.data_augmentation.TRAIN_TRANSFORMS_DEFAULT(32)` for CIFAR-10.
 """
+
+TEST_TRANSFORMS_DEFAULT_DOWNSCALE = lambda downscale, upscale:transforms.Compose([
+        transforms.Resize(downscale),
+        transforms.Resize(upscale),
+        transforms.CenterCrop(size),
+        transforms.ToTensor()
+    ])
 
 TEST_TRANSFORMS_DEFAULT = lambda size:transforms.Compose([
         transforms.Resize(size),

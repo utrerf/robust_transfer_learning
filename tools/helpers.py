@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchvision import datasets
 
 from robustness import defaults
+from robustness.tools import folder
 from robustness.datasets import ImageNet, CIFAR, CINIC
 from robustness.model_utils import make_and_restore_model
 
@@ -11,6 +12,8 @@ import cox
 from cox.utils import Parameters
 
 from tools.custom_datasets import CIFAR100, MNIST, SVHN
+from tools.custom_datasets import TRAIN_TRANSFORMS_DEFAULT, TEST_TRANSFORMS_DEFAULT
+from tools.custom_datasets import TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE, TEST_TRANSFORMS_DEFAULT_DOWNSCALE
 import tools.custom_datasets as custom_datasets
 
 import argparse
@@ -23,12 +26,13 @@ import sys
 
 def get_runtime_inputs():
 
-  eps_list             = [0, 3, 4, 8]
+  eps_list             = [0, 0.05, 0.25, 1, 3, 4, 8]
   unfrozen_blocks_list = [0, 1, 3, 6]
-  target_dataset_list  = ['cifar100', 'cifar10', 'svhn', 'fmnist', 'kmnist', 'mnist']
-
+  target_dataset_list  = ['cifar100', 'cifar10', 'svhn', 'fmnist', 'kmnist', 'mnist',
+                          'food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']
+  
   parser = argparse.ArgumentParser(add_help=True)
-  parser.add_argument('-e',  required=False, default=0,         help='epsilon used to train the source dataset', type=int, choices=eps_list)
+  parser.add_argument('-e',  required=False, default=0,         help='epsilon used to train the source dataset', type=float, choices=eps_list)
   parser.add_argument('-t',  required=False, default='cifar10', help='name of the target dataset', type=str, choices=target_dataset_list)
   parser.add_argument('-ub', required=False, default=0,         help='number of unfrozen blocks',  type=int, choices=unfrozen_blocks_list)
   parser.add_argument('-b',  required=False, default=128,       help='batch size',  type=int)
@@ -37,15 +41,19 @@ def get_runtime_inputs():
   parser.add_argument('-ne', required=False, default=30,        help='number of epochs', type=int)
   parser.add_argument('-li', required=False, default=5,         help='how often to log iterations', type=int)
   parser.add_argument('-s',  required=False, default=1000000,   help='random seed', type=int)
-
+  parser.add_argument('-d',  required=False, default=False,     help='downscale to lower res?', type=bool)
+  parser.add_argument('-ds', required=False, default=32,        help='downscaled resolution',   type=int)
 
   args = parser.parse_args()
 
   eps_to_filename = {
     0: 'nat',
-    3: 'imagenet_l2_3_0.pt',
-    4: 'imagenet_linf_4.pt',
-    8: 'imagenet_linf_8.pt'
+    0.05: 'imagenet_l2_0_05.pt',
+    0.25: 'imagenet_l2_0_25.pt',
+    1:    'imagenet_l2_1_0.pt',
+    3:    'imagenet_l2_3_0.pt',
+    4:    'imagenet_linf_4.pt',
+    8:    'imagenet_linf_8.pt'
     }
 
   source_filename  = eps_to_filename[args.e]
@@ -61,7 +69,9 @@ def get_runtime_inputs():
     'num_workers'            : args.w, 
     'num_training_images'    : args.n,
     'num_epochs'             : args.ne,
-    'log_iters'              : args.li
+    'log_iters'              : args.li,
+    'downscale'              : args.d,
+    'downscale_size'         : args.ds
     }
 
   return var_dict
@@ -98,7 +108,8 @@ def change_linear_layer_out_features(model, var_dict, num_in_features=2048):
     'mnist'   : 10,
     'imagenet': 1000,
     'cinic'   : 10,
-    'stl'     : 10
+    'stl'     : 10,
+    'food101' : 101
     }
 
   target_dataset_name = var_dict['target_dataset_name']
@@ -139,7 +150,8 @@ def make_train_and_test_set(var_dict):
     'svhn'    : 'SVHN',
     'stl'     : 'STL10',
     'fmnist'  : 'FashionMNIST',
-    'kmnist'  : 'KMNIST'
+    'kmnist'  : 'KMNIST',
+    'food101' : None
     }
 
   img_size_dict= {
@@ -148,7 +160,8 @@ def make_train_and_test_set(var_dict):
   'imagenet' :  (224, 224),
   'mnist'    :  (32, 32),    # because at training time we augmented it
   'svhn'     :  (32, 32),
-  'cinic'    :  (32, 32)
+  'cinic'    :  (32, 32),
+  'food101'  :  (224,224)
   }
 
   size = img_size_dict['imagenet']
@@ -156,17 +169,27 @@ def make_train_and_test_set(var_dict):
   target_dataset_name = var_dict['target_dataset_name']
   pytorch_target_ds = dataset_to_pytorchdataset[target_dataset_name]
   data_path = '/tmp'
+  train_transform, test_transform = TRAIN_TRANSFORMS_DEFAULT(size), TEST_TRANSFORMS_DEFAULT(size)
+  if var_dict['downscale']:
+      downscale_size = var_dict['downscale_size']
+      train_transform =  TRAIN_TRANSFORMS_DEFAULT(downscale_size, size)
+      test_transform = TRAIN_TRANSFORMS_DEFAULT(downscale_size, size)
 
-  if target_dataset_name in ['stl', 'svhn']:
+  if target_dataset_name in ['food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']:
+    path='/home/ubuntu/datasets/'+target_dataset_name+'/'
+    train_set = folder.ImageFolder(root=path+'train/', transform=train_transform)
+    test_set = folder.ImageFolder(root=path+'test/', transform=test_transform)
+
+  elif target_dataset_name in ['stl', 'svhn']:
     train_set = getattr(datasets, pytorch_target_ds)(root=data_path, split='train', download=True, 
-                                   transform=custom_datasets.TRAIN_TRANSFORMS_DEFAULT(size))
+                                   transform=train_transform)
     test_set = getattr(datasets, pytorch_target_ds)(root=data_path, split='test', download=True, 
-                                  transform=custom_datasets.TEST_TRANSFORMS_DEFAULT(size))
+                                  transform=test_transform)
   else:
     train_set = getattr(datasets, pytorch_target_ds)(root=data_path, train=True, download=True, 
-                                   transform=custom_datasets.TRAIN_TRANSFORMS_DEFAULT(size))
+                                   transform=train_transform)
     test_set = getattr(datasets, pytorch_target_ds)(root=data_path, train=False, download=True, 
-                                  transform=custom_datasets.TEST_TRANSFORMS_DEFAULT(size))
+                                  transform=test_transform)
 
   return train_set, test_set
 

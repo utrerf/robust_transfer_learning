@@ -25,7 +25,7 @@ for folder in folder_list:
         reader.close()
     else:
 
-        new_df['source_eps'] = re.findall(r'source_eps_([a-z,0-9]+)', folder)[0]
+        new_df['source_eps'] = re.findall(r'source_eps_(\d*\.\d*)_', folder)[0]
         new_df['target_ds'] = re.findall(r'target_dataset_([a-z,0-9]+)', folder)[0]
         new_df['num_training_images'] = re.findall(r'num_training_images_([a-z,0-9,-]+)', folder)[0]
         new_df['unfrozen_blocks'] = re.findall(r'unfrozen_blocks_([a-z,0-9]+)', folder)[0]
