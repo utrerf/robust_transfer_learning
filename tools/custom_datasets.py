@@ -11,7 +11,7 @@ from robustness.datasets import *
 TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE = lambda downscale, upscale: transforms.Compose([
             transforms.Resize(downscale),
             transforms.Resize(upscale),
-            transforms.RandomCrop(size, padding=4),
+            transforms.RandomCrop(upscale, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(.25,.25,.25),
             transforms.RandomRotation(2),
@@ -35,7 +35,7 @@ flipping, color jitter, and rotation. Called as, for example,
 TEST_TRANSFORMS_DEFAULT_DOWNSCALE = lambda downscale, upscale:transforms.Compose([
         transforms.Resize(downscale),
         transforms.Resize(upscale),
-        transforms.CenterCrop(size),
+        transforms.CenterCrop(upscale),
         transforms.ToTensor()
     ])
 

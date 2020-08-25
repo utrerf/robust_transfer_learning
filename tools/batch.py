@@ -11,15 +11,15 @@ train_dir = '/home/ubuntu/robust_transfer_learning/'
 
 sample_size_to_number_of_seeds_epochs_and_log_freq = {
     400  : (3, 150, 5),
-    1600 : (3, 150, 5),
-    6400 : (3, 150, 5),
+    1600 : (2, 150, 5),
+    6400 : (1, 150, 5),
     25600: (1, 150, 5),
     -1   : (1, 150, 5),
 }
 
 target_ds_list = ['food101']
 eps_levels = [0, 0.05, 0.25, 1]
-num_unfrozen_blocks_list = [3, 6]	
+num_unfrozen_blocks_list = [3]	
 
 
 polling_delay_seconds = 1
@@ -37,7 +37,7 @@ for t in target_ds_list:
             seed_list = [20000000 + 100000*(i) for i in range(num_seeds)]
             for s in seed_list:
                 for e in eps_levels:
-                    command = f'python train.py -e {e} -t {t} -ub {ub} -n {n} -s {s} -ne {ne} -li {li}'
+                    command = f'python train.py -e {e} -t {t} -ub {ub} -n {n} -s {s} -ne {ne} -li {li} -d True'
                     commands_to_run.append(command)
 
 for start_idx in range(0, len(commands_to_run), concurrent_commands):

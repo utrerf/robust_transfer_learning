@@ -169,11 +169,12 @@ def make_train_and_test_set(var_dict):
   target_dataset_name = var_dict['target_dataset_name']
   pytorch_target_ds = dataset_to_pytorchdataset[target_dataset_name]
   data_path = '/tmp'
+  
   train_transform, test_transform = TRAIN_TRANSFORMS_DEFAULT(size), TEST_TRANSFORMS_DEFAULT(size)
   if var_dict['downscale']:
       downscale_size = var_dict['downscale_size']
-      train_transform =  TRAIN_TRANSFORMS_DEFAULT(downscale_size, size)
-      test_transform = TRAIN_TRANSFORMS_DEFAULT(downscale_size, size)
+      train_transform =  TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE(downscale_size, size)
+      test_transform = TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE(downscale_size, size)
 
   if target_dataset_name in ['food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']:
     path='/home/ubuntu/datasets/'+target_dataset_name+'/'
@@ -255,13 +256,15 @@ def make_out_store(var_dict):
   num_training_images  = var_dict['num_training_images']
   unfrozen_blocks      = var_dict['unfrozen_blocks']
   seed                 = var_dict['seed']
+  downscale            = var_dict['downscale']
 
   out_dir = (os.getcwd()+ '/results/logs/'
                         + f'source_eps_{source_eps}_'
                         + f'target_dataset_{target_dataset_name}_'
                         + f'num_training_images_{num_training_images}_'
                         + f'unfrozen_blocks_{unfrozen_blocks}_'
-                        + f'seed_{seed}')
+                        + f'seed_{seed}'
+                        + f'downscaled_{downscale}')
   out_store = cox.store.Store(out_dir)
   return out_store
 
