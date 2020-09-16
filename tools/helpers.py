@@ -4,17 +4,14 @@ import torch.nn as nn
 from torchvision import datasets
 
 from robustness import defaults
-from robustness.tools import folder
-from robustness.datasets import ImageNet, CIFAR, CINIC
+from robustness.datasets import CIFAR
 from robustness.model_utils import make_and_restore_model
 
 import cox
 from cox.utils import Parameters
 
-from tools.custom_datasets import CIFAR100, MNIST, SVHN
-from tools.custom_datasets import TRAIN_TRANSFORMS_DEFAULT, TEST_TRANSFORMS_DEFAULT
-from tools.custom_datasets import TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE, TEST_TRANSFORMS_DEFAULT_DOWNSCALE
 import tools.custom_datasets as custom_datasets
+import tools.constants as constants
 
 import argparse
 import os
@@ -26,15 +23,15 @@ import sys
 
 def get_runtime_inputs():
 
-  eps_list             = [0, 0.05, 0.25, 1, 3, 4, 8]
-  unfrozen_blocks_list = [0, 1, 3, 6]
-  target_dataset_list  = ['cifar100', 'cifar10', 'svhn', 'fmnist', 'kmnist', 'mnist',
-                          'food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']
-  
+  eps_list             = list(constants.eps_to_filename.keys())
+  unfrozen_blocks_list = [-1, 0, 1, 3, 9]
+  #                         'food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']
+  target_dataset_list = list(custom_datasets.name_to_dataset_class.keys())
+
   parser = argparse.ArgumentParser(add_help=True)
-  parser.add_argument('-e',  required=False, default=0,         help='epsilon used to train the source dataset', type=float, choices=eps_list)
+  parser.add_argument('-e',  required=False, default=0,         help='epsilon used to train the source dataset. -1 means train from scratch', type=float, choices=eps_list)
   parser.add_argument('-t',  required=False, default='cifar10', help='name of the target dataset', type=str, choices=target_dataset_list)
-  parser.add_argument('-ub', required=False, default=0,         help='number of unfrozen blocks',  type=int, choices=unfrozen_blocks_list)
+  parser.add_argument('-ub', required=False, default=0,         help='number of unfrozen blocks. -1 means all blocks unfrozen',  type=int, choices=unfrozen_blocks_list)
   parser.add_argument('-b',  required=False, default=128,       help='batch size',  type=int)
   parser.add_argument('-n',  required=False, default=-1,        help='number of images used in the target dataset', type=int)
   parser.add_argument('-w',  required=False, default=10,        help='number of workers used for parallel computations', type=int)
@@ -43,25 +40,12 @@ def get_runtime_inputs():
   parser.add_argument('-s',  required=False, default=1000000,   help='random seed', type=int)
   parser.add_argument('-d',  required=False, default=False,     help='downscale to lower res?', type=bool)
   parser.add_argument('-ds', required=False, default=32,        help='downscaled resolution',   type=int)
+  # parser.add_argument('-lp', required=False, default=False,     help='use the 32x32 low pass?',   type=bool)
 
   args = parser.parse_args()
 
-  eps_to_filename = {
-    0: 'nat',
-    0.05: 'imagenet_l2_0_05.pt',
-    0.25: 'imagenet_l2_0_25.pt',
-    1:    'imagenet_l2_1_0.pt',
-    3:    'imagenet_l2_3_0.pt',
-    4:    'imagenet_linf_4.pt',
-    8:    'imagenet_linf_8.pt'
-    }
-
-  source_filename  = eps_to_filename[args.e]
-  source_model_path="{}/models/{}".format(os.getcwd(), source_filename)
-
   var_dict = {
     'source_eps'             : args.e,
-    'source_model_path'      : source_model_path, 
     'target_dataset_name'    : args.t, 
     'unfrozen_blocks'        : args.ub, 
     'batch_size'             : args.b,        
@@ -71,64 +55,49 @@ def get_runtime_inputs():
     'num_epochs'             : args.ne,
     'log_iters'              : args.li,
     'downscale'              : args.d,
-    'downscale_size'         : args.ds
+    'downscale_size'         : args.ds,
+    # 'low_pass'               : args.lp
     }
 
   return var_dict
 
-def set_seeds(var_dict):
 
+def set_seeds(var_dict):
   seed = var_dict['seed']
   random.seed(seed)
   np.random.seed(seed)
   ch.manual_seed(seed)
 
 
-def load_model(var_dict):
-
-  source_model_path = var_dict['source_model_path']
-
-  if source_model_path[-3:] == 'nat':
-    model, _ = make_and_restore_model(arch='resnet50', dataset=ImageNet('/tmp'), parallel=False, pytorch_pretrained=True)
-  else: 
-    model, _ = make_and_restore_model(arch='resnet50', dataset=ImageNet('/tmp'), resume_path=source_model_path, parallel=False)
-
-  return model
-
-
-def change_linear_layer_out_features(model, var_dict, num_in_features=2048):
-
-  num_classes_dict = {
-    'cifar100': 100,
-    'cifar10' : 10,
-    'cifards' : 10,
-    'kmnist'  : 10,
-    'fmnist'  : 10,
-    'svhn'    : 10,
-    'mnist'   : 10,
-    'imagenet': 1000,
-    'cinic'   : 10,
-    'stl'     : 10,
-    'food101' : 101
-    }
-
-  target_dataset_name = var_dict['target_dataset_name']
-  num_out_features = num_classes_dict[target_dataset_name]
+def change_linear_layer_out_features(model, var_dict, dataset, num_in_features=2048):
+  num_out_features = dataset.num_classes
   model.model.fc = nn.Linear(in_features=num_in_features, out_features=num_out_features)
   return model
-        
+  
+
+def load_model(var_dict, is_Transfer, pretrained, dataset):
+  if is_Transfer:
+    if var_dict['source_eps'] > 0:
+      resume_path = os.path.abspath('models/'+constants.eps_to_filename[var_dict['source_eps']])
+      model, _ = make_and_restore_model(arch='resnet50', dataset=dataset, parallel=False, resume_path=resume_path, pytorch_pretrained=False)
+    else: 
+      model, _ = make_and_restore_model(arch='resnet50', dataset=dataset, parallel=False, resume_path=None, pytorch_pretrained=True)
+  else:
+    model = dataset.get_model(arch='resnet50', pretrained=False)
+
+  return model
+
 
 def re_init_and_freeze_blocks(model, var_dict):
-  
+
   unfrozen_blocks_to_layer_name_list = {
     0: ['fc'],
     1: ['fc', '4.2'],
     3: ['fc', '4.2', '4.1', '4.0'],
-    6: ['fc', '4.2', '4.1', '4.0', '3.5', '3.4', '3.3', '3.2', '3.1', '3.0']
+    9: ['fc', '4.2', '4.1', '4.0', '3.5', '3.4', '3.3', '3.2', '3.1', '3.0']
     }
-
-  unfrozen_blocks = var_dict['unfrozen_blocks']
-  layer_name_list = unfrozen_blocks_to_layer_name_list[unfrozen_blocks]
+  
+  layer_name_list = unfrozen_blocks_to_layer_name_list[var_dict['unfrozen_blocks']]
 
   for name, param in model.named_parameters():
       # if the name of the parameter is not one of the unfrozen blocks then freeze it
@@ -139,149 +108,27 @@ def re_init_and_freeze_blocks(model, var_dict):
         elif 'fc.bias'   in name: nn.init.constant_(param, 0.0)
   return model
 
-
-def make_train_and_test_set(var_dict):
-  
-  dataset_to_pytorchdataset = {
-    'cifar10' : 'CIFAR10',
-    'cifar100': 'CIFAR100',
-    'mnist'   : 'MNIST',
-    'imagenet': 'ImageNet',
-    'svhn'    : 'SVHN',
-    'stl'     : 'STL10',
-    'fmnist'  : 'FashionMNIST',
-    'kmnist'  : 'KMNIST',
-    'food101' : None
-    }
-
-  img_size_dict= {
-  'cifar10'  :  (32, 32),
-  'cifar100' :  (32, 32),
-  'imagenet' :  (224, 224),
-  'mnist'    :  (32, 32),    # because at training time we augmented it
-  'svhn'     :  (32, 32),
-  'cinic'    :  (32, 32),
-  'food101'  :  (224,224)
-  }
-
-  size = img_size_dict['imagenet']
-
-  target_dataset_name = var_dict['target_dataset_name']
-  pytorch_target_ds = dataset_to_pytorchdataset[target_dataset_name]
-  data_path = '/tmp'
-  
-  train_transform, test_transform = TRAIN_TRANSFORMS_DEFAULT(size), TEST_TRANSFORMS_DEFAULT(size)
-  if var_dict['downscale']:
-      downscale_size = var_dict['downscale_size']
-      train_transform =  TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE(downscale_size, size)
-      test_transform = TRAIN_TRANSFORMS_DEFAULT_DOWNSCALE(downscale_size, size)
-
-  if target_dataset_name in ['food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']:
-    path='/home/ubuntu/datasets/'+target_dataset_name+'/'
-    train_set = folder.ImageFolder(root=path+'train/', transform=train_transform)
-    test_set = folder.ImageFolder(root=path+'test/', transform=test_transform)
-
-  elif target_dataset_name in ['stl', 'svhn']:
-    train_set = getattr(datasets, pytorch_target_ds)(root=data_path, split='train', download=True, 
-                                   transform=train_transform)
-    test_set = getattr(datasets, pytorch_target_ds)(root=data_path, split='test', download=True, 
-                                  transform=test_transform)
-  else:
-    train_set = getattr(datasets, pytorch_target_ds)(root=data_path, train=True, download=True, 
-                                   transform=train_transform)
-    test_set = getattr(datasets, pytorch_target_ds)(root=data_path, train=False, download=True, 
-                                  transform=test_transform)
-
-  return train_set, test_set
-
-def make_data_loaders(train_set, test_set, var_dict):
-  
-  num_training_images = var_dict['num_training_images']
-  batch_size          = var_dict['batch_size']
-  num_workers         = var_dict['num_workers']
-
-  # make mask
-  mask_sampler = make_mask(num_training_images, train_set)
-
-  train_loader = ch.utils.data.DataLoader(train_set, sampler=mask_sampler, batch_size=batch_size, 
-                                          shuffle=False, num_workers=num_workers, pin_memory=True)
-  test_loader  = ch.utils.data.DataLoader(test_set,                        batch_size=batch_size, 
-                                          shuffle=False, num_workers=num_workers, pin_memory=True)
-  return train_loader, test_loader
-
-
-def make_mask(num_training_images, train_set):
-  dataset_size = len(train_set)
-  mask = np.ones(dataset_size)
-
-  if num_training_images != -1:
-    mask = np.zeros(dataset_size)
-    shuffled_ix_list = [x for x in range(dataset_size)]
-    random.shuffle(shuffled_ix_list)
-    #print()
-    if 'train_labels' in dir(train_set):
-      remaining_classes_set = set(train_set.train_labels.tolist())
-    elif 'labels' in dir(train_set):
-      remaining_classes_set = set(train_set.labels)
-    else:
-      remaining_classes_set = set(train_set.targets)
-
-
-    remaining_choices = num_training_images
-    for ix in shuffled_ix_list:
-      label = train_set[ix][1]
-      if remaining_choices > len(remaining_classes_set) or label in remaining_classes_set:
-        mask[ix] += 1
-        remaining_choices -= 1
-        if label in remaining_classes_set: 
-          remaining_classes_set.remove(label)
-      if remaining_choices <= 0: 
-        break
-
-    # check
-    if sum(mask) != num_training_images:
-      print(f"ERROR: the mask has {sum(mask)} images but it should have {num_training_images} images") 
-    if len(remaining_classes_set) > 0:
-      print(f"ERROR: we're missing classes: {remaining_classes_set}") 
-  print('made the mask')
-  mask = np.nonzero(mask)[0]
-  mask_sampler = ch.utils.data.sampler.SubsetRandomSampler(mask)
-  return mask_sampler
-  
-
 def make_out_store(var_dict):
 
-  source_eps           = var_dict['source_eps']
-  target_dataset_name  = var_dict['target_dataset_name']
-  num_training_images  = var_dict['num_training_images']
-  unfrozen_blocks      = var_dict['unfrozen_blocks']
-  seed                 = var_dict['seed']
-  downscale            = var_dict['downscale']
-
   out_dir = (os.getcwd()+ '/results/logs/'
-                        + f'source_eps_{source_eps}_'
-                        + f'target_dataset_{target_dataset_name}_'
-                        + f'num_training_images_{num_training_images}_'
-                        + f'unfrozen_blocks_{unfrozen_blocks}_'
-                        + f'seed_{seed}'
-                        + f'downscaled_{downscale}')
+                        + f'source_eps_{var_dict["source_eps"]}_'
+                        + f'target_dataset_{var_dict["target_dataset_name"]}_'
+                        + f'num_training_images_{var_dict["num_training_images"]}_'
+                        + f'unfrozen_blocks_{var_dict["unfrozen_blocks"]}_'
+                        + f'seed_{var_dict["seed"]}_'
+                        + f'downscaled_{var_dict["downscale"]}_')
   out_store = cox.store.Store(out_dir)
   return out_store
 
 
 def make_train_args(var_dict):
-
-  num_epochs = var_dict['num_epochs']
-  step_lr = num_epochs//3
-
-  log_iters  = var_dict['log_iters']
   
   train_kwargs = {
     'out_dir'     : "train_out",
     'adv_train'   : 0,
-    'epochs'      : num_epochs,
-    'step_lr'     : step_lr,
-    "log_iters"   : log_iters,
+    'epochs'      : var_dict['num_epochs'],
+    'step_lr'     : var_dict['num_epochs']//3,
+    "log_iters"   : var_dict['log_iters'],
     }
 
   train_args = Parameters(train_kwargs)
