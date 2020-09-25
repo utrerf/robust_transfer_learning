@@ -1,4 +1,6 @@
 
+base_model_path = 'models/'
+
 eps_to_filename = {
         -1:    None, # Do not load a model that has been trained from scratch
         0:    'nat',
@@ -10,5 +12,5 @@ eps_to_filename = {
 	8:    'imagenet_linf_8.pt'
 }
 
-data_path = '/scratch/data/'
+base_data_path = '/home/ubuntu/data/'
 

@@ -37,9 +37,16 @@ TEST_TRANSFORMS_DEFAULT = lambda size:transforms.Compose([
         transforms.ToTensor()
         ])
 
-# MNIST TRANSFORMS
+# BLACK AND WHITE TRANSFORMS
 
-TRANSFORM_MNIST = lambda size: transforms.Compose([
+BLACK_N_WHITE_DOWNSCALE = lambda downscale, size: transforms.Compose([
+        transforms.Resize(downscale),
+        transforms.Resize(size),
+        transforms.Grayscale(num_output_channels=3),
+        transforms.ToTensor(),
+        ])
+
+BLACK_N_WHITE = lambda size: transforms.Compose([
         transforms.Resize(size),
         transforms.Grayscale(num_output_channels=3),
         transforms.ToTensor(),

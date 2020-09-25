@@ -26,7 +26,7 @@ def get_runtime_inputs():
   eps_list             = list(constants.eps_to_filename.keys())
   unfrozen_blocks_list = [-1, 0, 1, 3, 9]
   #                         'food101', 'aircraft', 'caltech101', 'pets', 'cars', 'dtd']
-  target_dataset_list = list(custom_datasets.name_to_dataset_class.keys())
+  target_dataset_list = list(custom_datasets.name_to_dataset.keys())
 
   parser = argparse.ArgumentParser(add_help=True)
   parser.add_argument('-e',  required=False, default=0,         help='epsilon used to train the source dataset. -1 means train from scratch', type=float, choices=eps_list)
@@ -40,7 +40,8 @@ def get_runtime_inputs():
   parser.add_argument('-s',  required=False, default=1000000,   help='random seed', type=int)
   parser.add_argument('-d',  required=False, default=False,     help='downscale to lower res?', type=bool)
   parser.add_argument('-ds', required=False, default=32,        help='downscaled resolution',   type=int)
-  # parser.add_argument('-lp', required=False, default=False,     help='use the 32x32 low pass?',   type=bool)
+  parser.add_argument('-lr', required=False, default=0.1,       help='learning rate',   type=float)
+ # parser.add_argument('-lp', required=False, default=False,     help='use the 32x32 low pass?',   type=bool)
 
   args = parser.parse_args()
 
@@ -56,6 +57,7 @@ def get_runtime_inputs():
     'log_iters'              : args.li,
     'downscale'              : args.d,
     'downscale_size'         : args.ds,
+    'learning_rate'          : args.lr,
     # 'low_pass'               : args.lp
     }
 
@@ -128,7 +130,8 @@ def make_train_args(var_dict):
     'adv_train'   : 0,
     'epochs'      : var_dict['num_epochs'],
     'step_lr'     : var_dict['num_epochs']//3,
-    "log_iters"   : var_dict['log_iters'],
+    'log_iters'   : var_dict['log_iters'],
+    'learning_rate': var_dict['learning_rate']
     }
 
   train_args = Parameters(train_kwargs)

@@ -1,5 +1,5 @@
 import tools.helpers as helpers
-from tools.custom_datasets import name_to_dataset_class, name_to_from_scratch_dataset_class
+from tools.custom_datasets import name_to_dataset, make_dataset
 from robustness import train
 import cox.store
 
@@ -17,9 +17,7 @@ pretrained = False
 if var_dict['source_eps'] == 0: pretrained = True
 
 # get dataset class
-dataset = name_to_dataset_class[var_dict['target_dataset_name']]()
-if is_Transfer == False:
-    dataset = name_to_from_scratch_dataset_class[var_dict['target_dataset_name']]()
+dataset = make_dataset(var_dict)
 
 model = helpers.load_model(var_dict, is_Transfer, pretrained, dataset)
 

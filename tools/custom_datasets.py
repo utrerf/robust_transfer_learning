@@ -1,186 +1,109 @@
 import tools.transforms as transforms
 import tools.constants as constants
+import tools.caltech as caltech
 import os
 from robustness import imagenet_models, cifar_models
 from robustness.datasets import DataSet, CIFAR
 import torch as ch
 from torchvision import datasets
 
-class FOOD(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'food'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
+
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
+
+class ImageNetTransfer(DataSet):
+    def __init__(self, data_path, **kwargs):
+        imagenet_size = 224
+        transform_type_to_transform = {
+                'default' : (transforms.TRAIN_TRANSFORMS_DEFAULT(imagenet_size),
+                             transforms.TEST_TRANSFORMS_DEFAULT(imagenet_size)),
+                'black_n_white' : (transforms.BLACK_N_WHITE(imagenet_size),
+                                   transforms.BLACK_N_WHITE(imagenet_size))
+                }
+        if kwargs['downscale']:
+            transform_type_to_transform = {
+                    'default' : (transforms.TRAIN_TRANSFORMS_DOWNSCALE(kwargs['downscale_size'], imagenet_size),
+                                 transforms.TEST_TRANSFORMS_DOWNSCALE(kwargs['downscale_size'], imagenet_size)),
+                    'black_n_white' : (transforms.BLACK_N_WHITE_DOWNSCALE(kwargs['downscale_size'], imagenet_size),
+                                       transforms.BLACK_N_WHITE_DOWNSCALE(kwargs['downscale_size'], imagenet_size))
+                    }
         ds_kwargs = {
-            'num_classes': 101,
-            'mean': ch.tensor([0.54930437, 0.44500041, 0.34350203]),
-            'std': ch.tensor([0.272926  , 0.27589517, 0.27998645]),
-            'custom_class': None,
+            'num_classes': kwargs['num_classes'],
+            'mean': ch.tensor(kwargs['mean']),
+            'std': ch.tensor(kwargs['std']), 
+            'custom_class': kwargs['custom_class'],
             'label_mapping': None,
-            'transform_train': transforms.TRAIN_TRANSFORMS_DEFAULT(size),
-            'transform_test': transforms.TEST_TRANSFORMS_DEFAULT(size)
+            'transform_train': transform_type_to_transform[kwargs['transform_type']][0],
+            'transform_test': transform_type_to_transform[kwargs['transform_type']][1]
         }
-        ds_kwargs = self.override_args(ds_kwargs, kwargs)
-        super(FOOD, self).__init__('food', data_path, **ds_kwargs)
-
-    def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=1000, 
-                                        pretrained=pretrained)
-
-class CIFAR10_Transfered(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'cifar10'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
-        ds_kwargs = {
-            'num_classes': 10,
-            'mean': ch.tensor([0.4914, 0.4822, 0.4465]),
-            'std': ch.tensor([0.2023, 0.1994, 0.2010]),
-            'custom_class': datasets.CIFAR10,
-            'label_mapping': None, 
-            'transform_train': transforms.TRAIN_TRANSFORMS_DEFAULT(size),
-            'transform_test': transforms.TEST_TRANSFORMS_DEFAULT(size)
-        }
-        super(CIFAR10_Transfered, self).__init__('cifar10_transf', data_path, **ds_kwargs)
-
-    def get_model(self, arch, pretrained=False):
-        # pretrained on Imagenet
-        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
-
-
-class FMNIST(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'fmnist'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
-        ds_kwargs = {
-            'num_classes': 10,
-            'mean': ch.tensor([0.1801,0.1801,0.1801]),
-            'std': ch.tensor([0.3421,0.3421,0.3421]),
-            'custom_class': None,
-            'label_mapping': None,
-            'transform_train': transforms.TRAIN_TRANSFORMS_MNIST(size),
-            'transform_test': transforms.TRAIN_TRANSFORMS_MNIST(size)
-        }
-        super(FMNIST, self).__init__('fmnist', data_path, **ds_kwargs)
+#        ds_kwargs = self.override_args(ds_kwargs, kwargs)
+        self.name = kwargs['name']
+        super(ImageNetTransfer, self).__init__(kwargs['name'], data_path, **ds_kwargs)
 
     def get_model(self, arch, pretrained=False):
         return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
 
+CIFAR_MEAN = [0.4914, 0.4822, 0.4465]
+CIFAR_STD = [0.2023, 0.1994, 0.2010] 
 
-class KMNIST(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'kmnist'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
+# this class is used when we're training from scratch instead of from a pre-trained imagenet model
+class CIFAR(DataSet):
+    def __init__(self, num_classes, data_path=None, **kwargs):
+        self.name = f'cifar{num_classes}'
+        
+        num_classes_to_custom_class = {
+                10: datasets.CIFAR10,
+                100: datasets.CIFAR100
+                }
+
         ds_kwargs = {
-            'num_classes': 10,
-            'mean': ch.tensor([0.1801,0.1801,0.1801]),
-            'std': ch.tensor([0.3421,0.3421,0.3421]),
-            'custom_class': None,
+            'num_classes': num_classes,
+            'mean': ch.tensor(CIFAR_MEAN),
+            'std': ch.tensor(CIFAR_STD),
+            'custom_class': num_classes_to_custom_class[num_classes],
             'label_mapping': None,
-            'transform_train': transforms.TRAIN_TRANSFORMS_MNIST(size),
-            'transform_test': transforms.TRAIN_TRANSFORMS_MNIST(size)
+            'transform_train': transforms.TRAIN_TRANSFORMS_DEFAULT(32),
+            'transform_test': transforms.TEST_TRANSFORMS_DEFAULT(32)
         }
-        super(KMNIST, self).__init__('kmnist', data_path, **ds_kwargs)
-
-    def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
-
-
-class CIFAR100_Transfered(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'cifar100'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
-        self.size = size
-        ds_kwargs = {
-            'num_classes': 100,
-            'mean': ch.tensor([0.4914, 0.4822, 0.4465]),
-            'std': ch.tensor([0.2023, 0.1994, 0.2010]),
-            'custom_class': datasets.CIFAR100,
-            'label_mapping': None,
-            'transform_train': transforms.TRAIN_TRANSFORMS_DEFAULT(self.size),
-            'transform_test': transforms.TEST_TRANSFORMS_DEFAULT(self.size)
-        }
-        super(CIFAR100, self).__init__('cifar100_transf', data_path, **ds_kwargs)
-
-    def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
-
-
-class CIFAR100(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'cifar100'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
-        self.size = size
-        ds_kwargs = {
-            'num_classes': 100,
-            'mean': ch.tensor([0.4914, 0.4822, 0.4465]),
-            'std': ch.tensor([0.2023, 0.1994, 0.2010]),
-            'custom_class': None,
-            'label_mapping': None,
-            'transform_train': transforms.TRAIN_TRANSFORMS_DEFAULT(self.size),
-            'transform_test': transforms.TEST_TRANSFORMS_DEFAULT(self.size)
-        }
-        super(CIFAR100, self).__init__('cifar100', data_path, **ds_kwargs)
+        super(CIFAR, self).__init__(f'cifar{num_classes}', data_path, **ds_kwargs)
 
     def get_model(self, arch, pretrained=False):
         if pretrained:
             raise ValueError('CIFAR100 does not support pytorch_pretrained=True')
-        return cifar_models.__dict__[arch](num_classes=100)
+        return cifar_models.__dict__[arch](num_classes=num_classes)
 
+name_to_dataset = {
+        'caltech101': {'num_classes':101, 'custom_class':None, 'transform_type':'default',
+                       'mean':IMAGENET_MEAN, 'std':IMAGENET_STD},
+        
+        'food': {'num_classes':101, 'custom_class':None, 'transform_type':'default',
+                 'mean':[0.5493, 0.4450, 0.3435], 'std':[0.2730, 0.2759, 0.2800]},
 
-class SVHN(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.name = 'svhn'
-        if data_path == None: 
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
-        ds_kwargs = {
-            'num_classes': 10,
-            'mean': ch.tensor([0.4377, 0.4438,0.4728]),
-            'std': ch.tensor([0.1980,0.2010,0.1970]),
-            'custom_class': None,
-            'label_mapping': None,
-            'transform_train': transforms.TRAIN_TRANSFORMS_DEFAULT(size), 
-            'transform_test': transforms.TRAIN_TRANSFORMS_DEFAULT(size)
-        }
-        super(SVHN, self).__init__('SVHN', data_path, **ds_kwargs)
+        'cifar10': {'num_classes':10, 'custom_class':datasets.CIFAR10, 'transform_type':'default',
+                    'mean':CIFAR_MEAN, 'std':CIFAR_STD},
+        
+        'cifar100': {'num_classes':100, 'custom_class':datasets.CIFAR100, 'transform_type':'default',
+                     'mean':CIFAR_MEAN, 'std':CIFAR_STD},
+        
+        'svhn': {'num_classes':10, 'custom_class':datasets.SVHN, 'transform_type':'default',
+                 'mean':[0.4377, 0.4438,0.4728], 'std':[0.1980,0.2010,0.1970]},
 
-    def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
-
-class MNIST(DataSet):
-    def __init__(self, data_path=None, size=224, **kwargs):
-        self.size = size
-        if data_path == None:
-            data_path = os.path.abspath(f'{constants.data_path}/{self.name}')
-        ds_kwargs = {
-            'num_classes': 10,
-            'mean': ch.tensor([0.1307,0.1307,0.1307]),
-            'std': ch.tensor([0.3081,0.3081,0.3081]),
-            'custom_class': None,
-            'label_mapping': None,
-            'transform_train': transforms.TRANSFORMS_MNIST(self.size), 
-            'transform_test': transforms.TRANSFORMS_MNIST(self.size)
-        }
-        super(MNIST, self).__init__('mnist', data_path, **ds_kwargs)
-
-    def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
-
-
-name_to_dataset_class = {
-        'food':     FOOD,
-        'cifar10':  CIFAR10_Transfered,
-        'cifar100': CIFAR100_Transfered,
-        'kmnist':   KMNIST,
-        'mnist':    MNIST,
-        'fmnist':   FMNIST,
-        'svhn':     SVHN
+        # TODO: Get mean and std for fmnist
+        'fmnist': {'num_classes':10, 'custom_class':datasets.FashionMNIST, 'transform_type':'black_n_white', 
+                   'mean':[0.1801,0.1801,0.1801], 'std':[0.3421,0.3421,0.3421]},
+        
+        'kmnist': {'num_classes':10, 'custom_class':datasets.KMNIST, 'transform_type':'black_n_white',
+                   'mean':[0.1801,0.1801,0.1801], 'std':[0.3421,0.3421,0.3421]},
+        
+        'mnist': {'num_classes':10, 'custom_class':datasets.MNIST, 'transform_type':'black_n_white',
+                  'mean':[0.1307,0.1307,0.1307], 'std':[0.3081,0.3081,0.3081]}
         }
 
-name_to_from_scratch_dataset_class = name_to_dataset_class.copy()
-name_to_from_scratch_dataset_class['cifar10'] = CIFAR
-name_to_from_scratch_dataset_class['cifar100'] = CIFAR100
+def make_dataset(args):
+    return ImageNetTransfer(name=args['target_dataset_name'],
+                     data_path=f'{constants.base_data_path}{args["target_dataset_name"]}',
+                     downscale=args['downscale'], downscale_size=args['downscale_size'], 
+                     **name_to_dataset[args['target_dataset_name']])
+
+
+
