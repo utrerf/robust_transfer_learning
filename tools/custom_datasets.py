@@ -1,6 +1,5 @@
 import tools.transforms as transforms
 import tools.constants as constants
-import tools.caltech as caltech
 import os
 from robustness import imagenet_models, cifar_models
 from robustness.datasets import DataSet, CIFAR
@@ -12,7 +11,8 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 class ImageNetTransfer(DataSet):
-    def __init__(self, data_path, **kwargs):
+    def __init__(self, data_path, num_transf_classes=1000, **kwargs):
+        self.num_classes = num_transf_classes
         imagenet_size = 224
         transform_type_to_transform = {
                 'default' : (transforms.TRAIN_TRANSFORMS_DEFAULT(imagenet_size),
@@ -41,7 +41,7 @@ class ImageNetTransfer(DataSet):
         super(ImageNetTransfer, self).__init__(kwargs['name'], data_path, **ds_kwargs)
 
     def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
+        return imagenet_models.__dict__[arch](num_classes=self.num_classes, pretrained=pretrained)
 
 CIFAR_MEAN = [0.4914, 0.4822, 0.4465]
 CIFAR_STD = [0.2023, 0.1994, 0.2010] 
