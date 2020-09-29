@@ -21,7 +21,7 @@ dataset = make_dataset(var_dict)
 
 model = helpers.load_model(var_dict, is_Transfer, pretrained, dataset)
 
-model = helpers.change_linear_layer_out_features(model, var_dict, dataset)
+model = helpers.change_linear_layer_out_features(model, var_dict, dataset, is_Transfer)
 
 if is_Transfer: model = helpers.re_init_and_freeze_blocks(model, var_dict)
 

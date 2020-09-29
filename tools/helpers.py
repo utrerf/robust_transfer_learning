@@ -6,6 +6,7 @@ from torchvision import datasets
 from robustness import defaults
 from robustness.datasets import CIFAR
 from robustness.model_utils import make_and_restore_model
+from robustness.attacker import AttackerModel
 
 import cox
 from cox.utils import Parameters
@@ -71,9 +72,13 @@ def set_seeds(var_dict):
   ch.manual_seed(seed)
 
 
-def change_linear_layer_out_features(model, var_dict, dataset, num_in_features=2048):
+def change_linear_layer_out_features(model, var_dict, dataset, is_Transfer, num_in_features=2048):
   num_out_features = dataset.num_classes
   model.model.fc = nn.Linear(in_features=num_in_features, out_features=num_out_features)
+  #if is_Transfer:
+  #  model.model.fc = nn.Linear(in_features=num_in_features, out_features=num_out_features)
+  #else:
+  #  model.fc = nn.Linear(in_features=num_in_features, out_features=num_out_features) 
   return model
   
 
@@ -86,7 +91,7 @@ def load_model(var_dict, is_Transfer, pretrained, dataset):
       model, _ = make_and_restore_model(arch='resnet50', dataset=dataset, parallel=False, resume_path=None, pytorch_pretrained=True)
   else:
     model = dataset.get_model(arch='resnet50', pretrained=False)
-
+    model = AttackerModel(model, dataset)
   return model
 
 

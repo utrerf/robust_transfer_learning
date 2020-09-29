@@ -73,6 +73,12 @@ class CIFAR(DataSet):
         return cifar_models.__dict__[arch](num_classes=num_classes)
 
 name_to_dataset = {
+        'caltech101_stylized': {'num_classes':101, 'custom_class':None, 'transform_type':'default',
+                       'mean':IMAGENET_MEAN, 'std':IMAGENET_STD},
+        
+        'food_stylized': {'num_classes':101, 'custom_class':None, 'transform_type':'default',
+                 'mean':[0.5493, 0.4450, 0.3435], 'std':[0.2730, 0.2759, 0.2800]},
+        
         'caltech101': {'num_classes':101, 'custom_class':None, 'transform_type':'default',
                        'mean':IMAGENET_MEAN, 'std':IMAGENET_STD},
         
