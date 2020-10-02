@@ -12,5 +12,6 @@ eps_to_filename = {
 	8:    'imagenet_linf_8.pt'
 }
 
-base_data_path = '/home/ubuntu/data/'
+# TODO: FILL OUT YOUR DATA PATH BELOW
+base_data_path = '/scratch/data/'
 

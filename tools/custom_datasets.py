@@ -41,7 +41,7 @@ class ImageNetTransfer(DataSet):
         super(ImageNetTransfer, self).__init__(kwargs['name'], data_path, **ds_kwargs)
 
     def get_model(self, arch, pretrained=False):
-        return imagenet_models.__dict__[arch](num_classes=self.num_classes, pretrained=pretrained)
+        return imagenet_models.__dict__[arch](num_classes=1000, pretrained=pretrained)
 
 CIFAR_MEAN = [0.4914, 0.4822, 0.4465]
 CIFAR_STD = [0.2023, 0.1994, 0.2010] 
